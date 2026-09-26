@@ -1,0 +1,12 @@
+{
+  "name": "fracture-ai",
+  "version": "1.0.0",
+  "description": "An educational/research web app for AI-based X-ray fracture detection with Grad-CAM \"possible fracture region\" visualization.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
