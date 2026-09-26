@@ -1,12 +1,8 @@
-```python
 """
 FractureAI backend.
 
 Run with:
-    uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-Change MODEL_PATH below if your trained model file has a different
-name or location.
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 """
 
 import base64
@@ -29,11 +25,13 @@ from gradcam import (
     heatmap_to_bounding_box,
 )
 
+
 # --------------------------------------------------------------------
 # Configuration
 # --------------------------------------------------------------------
 
 MODEL_PATH = "models/fracture_model.keras"
+
 IMG_SIZE = (224, 224)
 
 ALLOWED_CONTENT_TYPES = {
@@ -43,7 +41,7 @@ ALLOWED_CONTENT_TYPES = {
     "image/webp",
 }
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 # Production Vercel frontend
 FRONTEND_ORIGIN = "https://fracture-ai-xi.vercel.app"
@@ -51,8 +49,10 @@ FRONTEND_ORIGIN = "https://fracture-ai-xi.vercel.app"
 # Actual test accuracy of the trained model
 MODEL_ACCURACY_TEXT = "91.2%"
 
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("fracture-ai")
+
 
 # --------------------------------------------------------------------
 # Model state
@@ -64,12 +64,16 @@ state: dict = {
 }
 
 
+# --------------------------------------------------------------------
+# Load model
+# --------------------------------------------------------------------
+
 def load_model() -> None:
     logger.info("Loading model from %s ...", MODEL_PATH)
 
     model = tf.keras.models.load_model(MODEL_PATH)
 
-    # Warm up the model graph so the first real request isn't slower.
+    # Warm up the model so the first real request is faster.
     dummy = np.zeros(
         (1, IMG_SIZE[0], IMG_SIZE[1], 3),
         dtype=np.float32,
@@ -87,25 +91,34 @@ def load_model() -> None:
     )
 
 
+# --------------------------------------------------------------------
+# FastAPI lifespan
+# --------------------------------------------------------------------
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
         load_model()
-
     except Exception:
         logger.exception(
-            "Failed to load model at startup. /predict will return "
-            "an error until a valid model is placed at %s.",
+            "Failed to load model at startup. "
+            "/predict will return an error until a valid model "
+            "is placed at %s.",
             MODEL_PATH,
         )
 
     yield
 
 
+# --------------------------------------------------------------------
+# FastAPI app
+# --------------------------------------------------------------------
+
 app = FastAPI(
     title="FractureAI Backend",
     lifespan=lifespan,
 )
+
 
 # --------------------------------------------------------------------
 # CORS
@@ -125,7 +138,6 @@ app.add_middleware(
 # --------------------------------------------------------------------
 # Helpers
 # --------------------------------------------------------------------
-
 
 def encode_image_to_base64(image_rgb: np.ndarray) -> str:
     """Encode an RGB numpy image as a base64 JPEG data URL."""
@@ -153,12 +165,11 @@ def classify(
     not_fractured_probability: float,
 ) -> tuple[str, float]:
     """
-    Apply the training-time label convention:
+    Apply the training-time label convention.
 
-    0 = fractured
-    1 = not fractured
-
-    Sigmoid output = P(not fractured)
+    Sigmoid output:
+    - probability >= 0.5 -> NOT FRACTURED
+    - probability < 0.5 -> FRACTURED
     """
 
     if not_fractured_probability >= 0.5:
@@ -174,9 +185,8 @@ def classify(
 
 
 # --------------------------------------------------------------------
-# Routes
+# Health route
 # --------------------------------------------------------------------
-
 
 @app.get("/health")
 def health():
@@ -185,6 +195,10 @@ def health():
         "model_loaded": state["model"] is not None,
     }
 
+
+# --------------------------------------------------------------------
+# Prediction route
+# --------------------------------------------------------------------
 
 @app.post("/predict")
 async def predict(
@@ -200,8 +214,7 @@ async def predict(
             status_code=503,
             detail=(
                 f"Model is not loaded. Place your trained model at "
-                f"'{MODEL_PATH}' "
-                f"(backend/{MODEL_PATH}) and restart the server."
+                f"'{MODEL_PATH}' and restart the server."
             ),
         )
 
@@ -336,7 +349,6 @@ async def predict(
     # ---------------------------------------------------------------
 
     possible_region: Optional[dict] = None
-
     analyzed_rgb = original_rgb
 
     try:
@@ -410,4 +422,3 @@ async def predict(
     }
 
     return response
-```
